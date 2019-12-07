@@ -1,5 +1,6 @@
-const { Autohook } = require("twitter-autohook");
-const Twitter = require("twit");
+const { Autohook } = require('twitter-autohook');
+const Twitter = require('twit');
+const words = require('../words');
 
 class TwitterBot {
     constructor (credentials) {
@@ -24,9 +25,11 @@ class TwitterBot {
         try {
             this.webhook.on('event', async event => {
                 if (event.direct_message_events) {
+                    if (event.direct_message_events[0].message_create.sender_id === process.env.ACCOUNT_ID)
+                        return;
                     const id_array = Object.keys(event.users);
                     const sender = id_array[0];
-                    const user = `@${event.users[sender].screen_name}`;
+                    const user = event.users[sender];
                     const msgTxt =
                       event.direct_message_events[0].message_create.message_data
                         .text;
@@ -47,14 +50,50 @@ class TwitterBot {
     }
 
     async _onDm(user, msg) {
-        const tweetContent = `${msg} source: ${user}`;
-        this.client.post("statuses/update", { status: tweetContent }, function(
-          err,
-          data,
-          response
-        ) {
-          console.log(data);
-        });
+            const username = `@${user.screen_name}`;
+            const {
+                bannedWords,
+                requiredWords,
+                wantedWords,
+                contains
+            } = words;
+            const formattedMsg = msg.toLowerCase();
+            if (!contains(formattedMsg, bannedWords)) {
+                if (contains(formattedMsg, requiredWords)) {
+                    if (contains(formattedMsg, wantedWords)) {
+                        const tweetContent = `${msg} source: ${username}`;
+                        this.client.post('statuses/update', {
+                            status: tweetContent
+                        }, (
+                            err,
+                            data,
+                            response
+                        ) => console.log(data));
+                        return;
+                    }
+                }
+            }
+            this._wrongMessage(user);
+        }
+
+    _wrongMessage(user) {
+        const text = 'Je ne peux pas tweeter cela, désolé, je vais plutôt retourner chercher des problèmes sur les lignes souterraines !';
+        const obj = {
+            "event": {
+                "type": "message_create",
+                "message_create": {
+                    "target": {
+                        "recipient_id": user.id
+                    },
+                    "message_data": {
+                        "text": text,
+                    }
+                }
+            }
+        }
+        this.client.post('direct_messages/events/new', obj)
+        .catch(err => console.error(err))
+        .then(screen_name => console.log(`Message bien envoyé à ${user.screen_name}`));
     }
 
 }
