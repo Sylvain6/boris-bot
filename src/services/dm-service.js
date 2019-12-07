@@ -23,19 +23,38 @@ class TwitterBot {
     async subscribe() {
         try {
             this.webhook.on('event', async event => {
-                console.log(event);
+                if (event.direct_message_events) {
+                    const id_array = Object.keys(event.users);
+                    const sender = id_array[0];
+                    const user = `@${event.users[sender].screen_name}`;
+                    const msgTxt =
+                      event.direct_message_events[0].message_create.message_data
+                        .text;
+                    this._onDm(user, msgTxt);
+                }
             });
 
             await this.webhook.removeWebhooks();
             await this.webhook.start();
             await this.webhook.subscribe({
-                oauth_token: '194635067273822212-zmhLX8tK6TD2eXKjWo6FLmfc8QPFN5',
-                oauth_token_secret: 'IJ6yjF0pitqEd2KuEb7JrmGYTSaGrKZmRjdC2DgM5sFuG',
+              oauth_token: process.env.TWITTER_ACCESS_TOKEN,
+              oauth_token_secret: process.env.TWITTER_ACCESS_TOKEN_SECRET
             });
         } catch (e) {
             console.error(e);
             process.exit(1);
         }
+    }
+
+    async _onDm(user, msg) {
+        const tweetContent = `${msg} source: ${user}`;
+        this.client.post("statuses/update", { status: tweetContent }, function(
+          err,
+          data,
+          response
+        ) {
+          console.log(data);
+        });
     }
 
 }
